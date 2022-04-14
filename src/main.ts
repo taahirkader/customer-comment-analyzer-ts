@@ -15,25 +15,36 @@ function addReportResults(source: Map<string, number>, target: Map<string, numbe
   });
 }
 
-try {
-  let fileNames: string[] = fs.readdirSync(testFolder);
+fs.readdir(testFolder, (err: Error|null, fileNames: string[]) => {
+  if (err) {
+    console.log(err);
+  } else {
+    let resolvedPromisesArray: Promise<Map<string, number>>[] = [];
 
-  fileNames.forEach(file => {
-    let commentAnalyzer: CommentAnalyzer = new CommentAnalyzer(testFolder + file);
-  
-    commentAnalyzer.addMetric(new LessThan15Check());
-    commentAnalyzer.addMetric(new MoverCheck());
-    commentAnalyzer.addMetric(new ShakerCheck());
-    commentAnalyzer.addMetric(new QuestionCheck());
-    commentAnalyzer.addMetric(new SpamCheck());
+    fileNames.forEach(file => {
+      let promise: Promise<Map<string, number>> = new Promise<Map<string, number>>((resolve, reject) => {
+        let commentAnalyzer: CommentAnalyzer = new CommentAnalyzer(testFolder + file);
+    
+        commentAnalyzer.addMetric(new LessThan15Check());
+        commentAnalyzer.addMetric(new MoverCheck());
+        commentAnalyzer.addMetric(new ShakerCheck());
+        commentAnalyzer.addMetric(new QuestionCheck());
+        commentAnalyzer.addMetric(new SpamCheck());
+    
+        let fileResults: Map<string, number> = commentAnalyzer.analyze();
+        resolve(fileResults);
+      });
 
-    let fileResults: Map<string, number> = commentAnalyzer.analyze();
-    addReportResults(fileResults, totalResults);
-  });
-} catch (err) {
-  console.log(err);
-}
+      resolvedPromisesArray.push(promise);
+    });
 
-console.log('RESULTS\n=======');
-totalResults.forEach((v: number, k: string) => console.log(k + ' : ' + v));
+    Promise.all(resolvedPromisesArray).then((values: Map<string, number>[]) => {
+      values.forEach(value => {
+        addReportResults(value, totalResults);
+      });
 
+      console.log('RESULTS\n=======');
+      totalResults.forEach((v: number, k: string) => console.log(k + ' : ' + v));
+    });
+  }
+});
